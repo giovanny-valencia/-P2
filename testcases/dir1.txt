@@ -1,0 +1,10 @@
+apple
+banana
+carrot
+dog
+elephant
+fish
+grape
+horse
+igloo
+jellyfish
