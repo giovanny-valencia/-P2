@@ -3,10 +3,15 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/stat.h>
 
 // macros
-#define dictionaryDebug
-#define tokenDebug
+#define TextFile 0
+#define DirectoryFile 1
+#define Invalid -1
+// #define dictionaryDebug
+// #define tokenDebug
+#define fileDebug
 #define currentLine printf("Current line: %d\n", __LINE__)
 
 // global variables
@@ -15,6 +20,8 @@ int wordCount = 0;
 
 // function prototypes
 void dictionaryCreation(char const argv[1]);
+void processFile(char const argv[]);
+int file_or_dir(char const argv[]);
 
 int main(int argc, char const *argv[])
 {
@@ -39,6 +46,12 @@ int main(int argc, char const *argv[])
         printf("%s\n", dictionaryArray[i]);
     }
 #endif
+
+    // start processing the files passed, starting at argv[2] -> argv[argc-1]
+    for (int i = 2; i < argc; i++)
+    {
+        processFile(argv[i]);
+    }
 
     printf("end!\n");
     exit(EXIT_SUCCESS);
@@ -107,4 +120,52 @@ void dictionaryCreation(char const *pathToDictionaryFile)
     }
 }
 
-//  step two, check the files
+// step two, check the files
+// for every file found, it's sent through this function which checks it for type
+// if txt file -> process, if dir -> recurse
+void processFile(char const *pathToFile)
+{
+#ifdef fileDebug
+    printf("processing file: %s\n", pathToFile);
+#endif
+
+    // check if file is .txt or directory
+    int fileType = file_or_dir(pathToFile);
+    // printf("file type: %d\n", fileType);
+
+    if (fileType == TextFile)
+    {
+        // process the text file
+        printf("text file\n");
+    }
+    else if (fileType == DirectoryFile)
+    {
+        // process the directory
+        printf("directory\n");
+    }
+    else
+    {
+        printf("invalid file type\n");
+    }
+}
+
+int file_or_dir(char const *pathToFile)
+{
+    struct stat fileStat;
+    if (stat(pathToFile, &fileStat) < 0)
+    {
+        perror("stat\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (S_ISREG(fileStat.st_mode))
+    {
+        return TextFile;
+    }
+    else if (S_ISDIR(fileStat.st_mode))
+    {
+        return DirectoryFile;
+    }
+    else // this shouldn't happen, but just in case
+        return Invalid;
+}
