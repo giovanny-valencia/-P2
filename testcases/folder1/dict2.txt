@@ -1,0 +1,10 @@
+apple
+banana
+cat
+dog
+elephant
+fish
+gorilla
+horse
+iguana
+jaguar
