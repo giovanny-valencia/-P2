@@ -1,0 +1,8 @@
+{[(this[";}isAWord anotherword
+lets keep trying with other words
+alone
+theseare mo[]]re words...!.
+apple
+pancake
+testing-hyphenated-words
+This is an almost-correct example.
