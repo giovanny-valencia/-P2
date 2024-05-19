@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <limits.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 // macros
 #define TextFile 0
@@ -15,10 +16,11 @@
 #define INITIAL_CAPACITY 100
 #define GROWTH_FACTOR 2
 // #define dictionaryDebug
+// #define sortingDictionaryDebug
 // #define tokenDebug
-#define traverseDebug
-#define fileDebug
-#define currentLine printf("Current line: %d\n", __LINE__)
+// #define traverseDebug
+// #define fileDebug
+#define currentLine printf("\nCurrent line: %d\n", __LINE__)
 
 // global variables
 char **dictionaryArray;
@@ -27,6 +29,7 @@ int errorCount = 0; // Global variable to keep track of errors for the wrap up o
 
 // function prototypes
 void dictionaryCreation(char const argv[1]);
+int compareStrings(const void *a, const void *b);
 void processFile(char const argv[]);
 int file_or_dir(char const argv[]);
 void traverseDirectory(char const argv[]);
@@ -36,6 +39,7 @@ int isChar(char c);
 int isQuotationOrBracket(char c);
 void spellCheckWord(char *word, int line, int columnPosition, const char *currentFilePath);
 int binarySearch(char **array, int size, char *target);
+void acceptedVariationHandling(char *baseCase);
 
 //  ProcessedFilesArray struct and utility functions for it
 
@@ -55,7 +59,10 @@ int main(int argc, char const *argv[])
     // The first argument to spchk will be a path to a dictionary file. Subsequent arguments will be paths to text files or directories.
     dictionaryCreation(argv[1]);
 
-#ifdef dictionaryDebug
+    // sort the dictionary array
+    qsort(dictionaryArray, wordCount, sizeof(char *), compareStrings);
+
+#ifdef sortingDictionaryDebug
     printf("word count: %d\t", wordCount);
     printf("dictionary array \n");
     for (int i = 0; i < wordCount; i++)
@@ -137,14 +144,14 @@ void dictionaryCreation(char const *pathToDictionaryFile)
 #endif
 
     close(fd);
-    // given the wordCount, create array of size wordCount to store the dictionary words (accepted cases handled later)
-    dictionaryArray = malloc(wordCount * sizeof(char *)); // Allocate memory for the array of pointers
+    // given the wordCount, create array of size 3* wordCount to store the dictionary words and max possible cases (accepted cases handled later)
+    dictionaryArray = malloc((3 * wordCount) * sizeof(char *)); // Allocate memory for the array of pointers
 
     fd = open(pathToDictionaryFile, O_RDONLY);
 
-    char wordBuffer[100]; // arbitrary size, should be enough for any word
+    char wordBuffer[100]; // arbitrary size, should be enough for any reasonable word
     int wordIndex = 0;
-    int dictionaryIndex = 0;
+    wordCount = 0; // reset word count to 0 to re-read the file and store the words in the dictionary array
 
     while ((bytesRead = read(fd, &wordBuffer[wordIndex], 1)) > 0)
     {
@@ -152,10 +159,13 @@ void dictionaryCreation(char const *pathToDictionaryFile)
         {
             wordBuffer[wordIndex] = '\0';
 
-            // end of word, add word to dictionary, reset wordIndex, and increment dictionaryIndex
-            char *token = strtok(wordBuffer, "\n");
-            dictionaryArray[dictionaryIndex] = strdup(token);
-            dictionaryIndex++;
+            // end of word, process it to get additional accepted cases
+            char *baseCase = strtok(wordBuffer, "\n");
+
+            acceptedVariationHandling(baseCase);
+
+            // add the base case to the dictionary
+            // dictionaryArray[dictionaryIndex] = strdup(baseCase);
             wordIndex = 0;
         }
         else
@@ -163,6 +173,12 @@ void dictionaryCreation(char const *pathToDictionaryFile)
             wordIndex++;
         }
     }
+}
+
+// Function to compare two strings for sorting
+int compareStrings(const void *a, const void *b)
+{
+    return strcmp(*(const char **)a, *(const char **)b);
 }
 
 int file_or_dir(char const *pathToFile)
@@ -213,7 +229,7 @@ void processFile(char const *pathToFile)
     // read the file, one byte at a time, constructs one word at a time
     while ((bytesRead = read(fd, readBuffer, 1)) > 0)
     {
-        if (readBuffer[0] == ' ' || readBuffer[0] == '\t' || readBuffer[0] == '\n') // white space, process word
+        if (readBuffer[0] == ' ' || readBuffer[0] == '\t' || readBuffer[0] == '\n' || ispunct(readBuffer[0])) // white space, process word
         {
             columnPosition++;                   // increments column position to account white space
             wordBufferIndex++;                  // increments word buffer index to account for white space -> null terminator
@@ -221,10 +237,19 @@ void processFile(char const *pathToFile)
 
             // process word will add this function call later
             // printf("process word\n");
-            processWord(wordBuffer, startOfWord, endOfWord, line, columnPosition, pathToFile);
+            printf("column position: %d\t", columnPosition);
+            printf("start of word: %d\t", startOfWord);
+            printf("end of word: %d\n", endOfWord);
+
+            if (startOfWord != -1 && endOfWord != -1)
+            {
+                processWord(wordBuffer, startOfWord, endOfWord, line, columnPosition, pathToFile);
+            }
+            // currentLine;
 
             // reset our buffer and tracking variables and continue
 
+            // currentLine;
             if (readBuffer[0] == '\n')
             {
                 line++;
@@ -234,6 +259,8 @@ void processFile(char const *pathToFile)
             startOfWord = -1;
             endOfWord = -1;
             continue;
+
+            // currentLine;
         }
 
         // if it's not a newline or whitespace, then need to grab and store the char, will further examine it later
@@ -254,6 +281,7 @@ void processFile(char const *pathToFile)
         wordBuffer[wordBufferIndex] = readBuffer[0];
         wordBufferIndex++;
     }
+    // currentLine;
 }
 
 void traverseDirectory(char const *pathToDirectory)
@@ -377,16 +405,27 @@ void processWord(int wordBuffer[], int startOfWord, int endOfWord, int line, int
         }
     }
 
-    // printf("\n");
-    //  then re-creates the word with the true end of the word
+    // re-creates the word with the true end of the word
     char legalTextWord[100]; // arbitrary size, should be enough for any word
     for (int i = 0; i <= endOfWord; i++)
     {
         legalTextWord[i] = wordBuffer[i];
     }
-    legalTextWord[endOfWord + 1] = '\0';
 
-    spellCheckWord(legalTextWord, line, startOfWord, currentFilePath);
+    printf("\n");
+    legalTextWord[endOfWord + 1] = '\0';
+    for (unsigned i = 0; i < strlen(legalTextWord); i++)
+    {
+        printf("%c", legalTextWord[i]);
+    }
+    printf("\n");
+
+    if (startOfWord > 0)
+    {
+        spellCheckWord(legalTextWord, line, startOfWord, currentFilePath);
+    }
+
+    // currentLine;
 }
 
 void spellCheckWord(char *word, int line, int startOfWord, const char *currentFilePath)
@@ -395,9 +434,14 @@ void spellCheckWord(char *word, int line, int startOfWord, const char *currentFi
     // if they are ALL correct then the word is correct
     // if ONE or more is incorrect, then the word is incorrect, but the error report will be for the entire hyphenated word starting at initial
     char *wordCopy = strdup(word);
-    char delimiter = '-';
-    char *token = strtok(wordCopy, &delimiter); // get the first token or full word if no delimiter
+    // char delimiter = '-';
+    char *token = strtok(word, "-"); // get the first token or full word if no delimiter
     int report;
+
+    printf("word: %s\n", word);
+    printf("copy: %s\n", wordCopy);
+    printf("initial token: %s\n", token);
+
     while (token != NULL)
     {
         printf("token: %s\n", token);
@@ -406,7 +450,7 @@ void spellCheckWord(char *word, int line, int startOfWord, const char *currentFi
         {
             break;
         }
-        token = strtok(NULL, &delimiter);
+        token = strtok(NULL, "-");
     }
 
     if (report == -1)
@@ -445,4 +489,60 @@ int binarySearch(char **array, int size, char *target)
         }
     }
     return -1; // target not found
+}
+
+void acceptedVariationHandling(char *baseCase)
+{
+    int wordLength = strlen(baseCase);
+    bool allowInitialCapital = true;
+    bool allowAllUppercase = false;
+
+    // examines the word char by char
+    for (int i = 0; i < wordLength; i++)
+    {
+        if (i > 0)
+        {
+            if (islower(baseCase[i]))
+            {
+                allowAllUppercase = true;
+                break;
+            }
+        }
+        else if (i == 0)
+        {
+
+            if (isupper(baseCase[0]))
+            {
+                allowInitialCapital = false;
+            }
+        }
+    }
+
+    // add base case to dictionary
+    dictionaryArray[wordCount] = strdup(baseCase);
+    wordCount++;
+
+    if (allowInitialCapital) // create initial capital case and add to dictionary
+    {
+        char *initialCapital = strdup(baseCase);
+        initialCapital[0] = toupper(initialCapital[0]);
+        dictionaryArray[wordCount] = initialCapital;
+        // free(initialCapital);
+        wordCount++;
+    }
+
+    if (allowAllUppercase) // create all uppercase case and add to dictionary
+    {
+        char *allUppercase = strdup(baseCase);
+        for (int i = 0; i < wordLength; i++)
+        {
+            allUppercase[i] = toupper(allUppercase[i]);
+        }
+        dictionaryArray[wordCount] = allUppercase;
+        //   free(allUppercase);
+        wordCount++;
+    }
+    // free(baseCase);
+    // printf("\n");
+    // printf("word count: %d\n", wordCount);
 }

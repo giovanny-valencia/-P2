@@ -2,6 +2,9 @@ apple
 banana
 carrot
 dog
+TEST
+rAf
+nOT
 elephant
 fish
 grape
