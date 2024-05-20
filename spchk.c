@@ -8,6 +8,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <unistd.h>
 
 // macros
 #define TextFile 0
@@ -40,10 +41,6 @@ int isQuotationOrBracket(char c);
 void spellCheckWord(char *word, int line, int columnPosition, const char *currentFilePath);
 int binarySearch(char **array, int size, char *target);
 void acceptedVariationHandling(char *baseCase);
-
-//  ProcessedFilesArray struct and utility functions for it
-
-//  End of ProcessedFilesArray struct and utility functions for it
 
 int main(int argc, char const *argv[])
 {
@@ -81,13 +78,11 @@ int main(int argc, char const *argv[])
         if (fileType == TextFile)
         {
             // process the text file
-            // printf("text file\n");
             processFile(argv[i]);
         }
         else if (fileType == DirectoryFile)
         {
             // process the directory
-            // printf("directory\n");
             traverseDirectory(argv[i]);
         }
         else // shouldn't happen, but just in case
@@ -96,15 +91,22 @@ int main(int argc, char const *argv[])
         }
     }
 
-    printf("end!\n");
+    // free the dictionary array
+    for (int i = 0; i < wordCount; i++)
+    {
+        // printf("i: %d\t", i);
+        // printf("%s\n", dictionaryArray[i]);
+        free(dictionaryArray[i]);
+    }
+//     printf("end!\n");
     if (errorCount > 0) // If there are errors, return EXIT_FAILURE. Otherwise, return EXIT_SUCCESS.
     {
-        printf("Errors found\n");
+        //  printf("Errors found\n");
         exit(EXIT_FAILURE);
     }
     else
     {
-        printf("No errors found\n");
+        // printf("No errors found\n");
         exit(EXIT_SUCCESS);
     }
 }
@@ -118,14 +120,19 @@ void dictionaryCreation(char const *pathToDictionaryFile)
 #endif
 
     // first check to see if the dictionary file exists/can be opened
+
+#ifdef traverseDebug
+    printf("path to dictionary file: %s\n", pathToDictionaryFile);
+#endif
+
     int fd = open(pathToDictionaryFile, O_RDONLY);
     if (fd == -1)
     {
-        perror("open\n");
-        exit(EXIT_FAILURE);
+        printf("could not open dictionary file\n");
+        exit(EXIT_FAILURE); // this is needed for the program, so pointless to continue
     }
-    // else valid file descriptor, continue
 
+    // else valid file descriptor, continue
     // read the dictionary file to get word count
     char countBuffer[1];
     int bytesRead = 0;
@@ -164,8 +171,6 @@ void dictionaryCreation(char const *pathToDictionaryFile)
 
             acceptedVariationHandling(baseCase);
 
-            // add the base case to the dictionary
-            // dictionaryArray[dictionaryIndex] = strdup(baseCase);
             wordIndex = 0;
         }
         else
@@ -187,7 +192,8 @@ int file_or_dir(char const *pathToFile)
     if (stat(pathToFile, &fileStat) < 0)
     {
         perror("stat\n");
-        exit(EXIT_FAILURE);
+        printf("could not get file stats\n");
+        return EXIT_FAILURE;
     }
 
     if (S_ISREG(fileStat.st_mode))
@@ -212,7 +218,7 @@ void processFile(char const *pathToFile)
     int fd = open(pathToFile, O_RDONLY);
     if (fd == -1)
     {
-        perror("could not open file\n");
+        printf("could not open file\n");
         errorCount++;
         return;
     }
@@ -229,27 +235,24 @@ void processFile(char const *pathToFile)
     // read the file, one byte at a time, constructs one word at a time
     while ((bytesRead = read(fd, readBuffer, 1)) > 0)
     {
-        if (readBuffer[0] == ' ' || readBuffer[0] == '\t' || readBuffer[0] == '\n' || ispunct(readBuffer[0])) // white space, process word
+        if (readBuffer[0] == ' ' || readBuffer[0] == '\t' || readBuffer[0] == '\n') // white space, process word
         {
             columnPosition++;                   // increments column position to account white space
             wordBufferIndex++;                  // increments word buffer index to account for white space -> null terminator
             wordBuffer[wordBufferIndex] = '\0'; // null terminate the word buffer
 
-            // process word will add this function call later
-            // printf("process word\n");
+#ifdef tokenDebug
             printf("column position: %d\t", columnPosition);
             printf("start of word: %d\t", startOfWord);
             printf("end of word: %d\n", endOfWord);
+#endif
 
             if (startOfWord != -1 && endOfWord != -1)
             {
                 processWord(wordBuffer, startOfWord, endOfWord, line, columnPosition, pathToFile);
             }
-            // currentLine;
 
             // reset our buffer and tracking variables and continue
-
-            // currentLine;
             if (readBuffer[0] == '\n')
             {
                 line++;
@@ -259,11 +262,7 @@ void processFile(char const *pathToFile)
             startOfWord = -1;
             endOfWord = -1;
             continue;
-
-            // currentLine;
         }
-
-        // if it's not a newline or whitespace, then need to grab and store the char, will further examine it later
         columnPosition++;
 
         // if the start of the word has not yet been found, and the char is a quotation or bracket ( ', ", (, [, { ) then dont store it, continue
@@ -281,7 +280,6 @@ void processFile(char const *pathToFile)
         wordBuffer[wordBufferIndex] = readBuffer[0];
         wordBufferIndex++;
     }
-    // currentLine;
 }
 
 void traverseDirectory(char const *pathToDirectory)
@@ -315,7 +313,7 @@ void traverseDirectory(char const *pathToDirectory)
         if (entry->d_type == DT_REG)
         {
             // process the file
-            printf("file: %s\n", entry->d_name);
+            //  printf("file: %s\n", entry->d_name);
 
             const char *newPath = concatenatePath(pathToDirectory, entry->d_name);
             if (newPath == NULL)
@@ -331,7 +329,7 @@ void traverseDirectory(char const *pathToDirectory)
         else if (entry->d_type == DT_DIR)
         {
             // process the directory
-            printf("directory: %s\n", entry->d_name);
+            //  printf("directory: %s\n", entry->d_name);
             const char *newPath = concatenatePath(pathToDirectory, entry->d_name);
             if (newPath == NULL)
             {
@@ -412,20 +410,20 @@ void processWord(int wordBuffer[], int startOfWord, int endOfWord, int line, int
         legalTextWord[i] = wordBuffer[i];
     }
 
-    printf("\n");
     legalTextWord[endOfWord + 1] = '\0';
+
+#ifdef tokenDebug
     for (unsigned i = 0; i < strlen(legalTextWord); i++)
     {
         printf("%c", legalTextWord[i]);
     }
     printf("\n");
+#endif
 
     if (startOfWord > 0)
     {
         spellCheckWord(legalTextWord, line, startOfWord, currentFilePath);
     }
-
-    // currentLine;
 }
 
 void spellCheckWord(char *word, int line, int startOfWord, const char *currentFilePath)
@@ -434,17 +432,16 @@ void spellCheckWord(char *word, int line, int startOfWord, const char *currentFi
     // if they are ALL correct then the word is correct
     // if ONE or more is incorrect, then the word is incorrect, but the error report will be for the entire hyphenated word starting at initial
     char *wordCopy = strdup(word);
-    // char delimiter = '-';
     char *token = strtok(word, "-"); // get the first token or full word if no delimiter
     int report;
 
+#ifdef tokenDebug
     printf("word: %s\n", word);
     printf("copy: %s\n", wordCopy);
-    printf("initial token: %s\n", token);
+#endif
 
     while (token != NULL)
     {
-        printf("token: %s\n", token);
         report = binarySearch(dictionaryArray, wordCount, token);
         if (report == -1)
         {
@@ -455,7 +452,7 @@ void spellCheckWord(char *word, int line, int startOfWord, const char *currentFi
 
     if (report == -1)
     {
-        printf("%s (%d, %d): %s\n", currentFilePath, line, startOfWord, word);
+        printf("%s (%d, %d): %s\n", currentFilePath, line, startOfWord, wordCopy);
         errorCount++;
     }
     else
@@ -527,7 +524,6 @@ void acceptedVariationHandling(char *baseCase)
         char *initialCapital = strdup(baseCase);
         initialCapital[0] = toupper(initialCapital[0]);
         dictionaryArray[wordCount] = initialCapital;
-        // free(initialCapital);
         wordCount++;
     }
 
@@ -539,10 +535,6 @@ void acceptedVariationHandling(char *baseCase)
             allUppercase[i] = toupper(allUppercase[i]);
         }
         dictionaryArray[wordCount] = allUppercase;
-        //   free(allUppercase);
         wordCount++;
     }
-    // free(baseCase);
-    // printf("\n");
-    // printf("word count: %d\n", wordCount);
 }

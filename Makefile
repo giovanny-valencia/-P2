@@ -1,6 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -g -fsanitize-undefined-trap-on-error
-
+CFLAGS = -Wall -Wextra -fsanitize=address
 
 default: spchk
 
@@ -8,9 +7,5 @@ spchk: spchk.c
 	$(CC) $(CFLAGS) -o spchk spchk.c
 
 clean:
-	del spchk.exe
-ifdef OS
-	cls
-else
+	rm -f spchk 
 	clear
-endif
